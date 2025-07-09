@@ -15,6 +15,7 @@ processing_end_turn = False  # Prevent multiple rapid end_turn calls
 
 def send_game_update():
     """Helper function to send game updates with consistent data"""
+    print(f"DEBUG: send_game_update called for round {game.round + 1}, turn {game.turn + 1}")
     emit(
         "update",
         {
@@ -178,13 +179,8 @@ def on_end_turn(data):
     if is_round_end and news_events:
         print(f"DEBUG: Sending market news with {len(news_events)} events")  # Debug
         emit("news", {"events": news_events}, broadcast=True)
-        # Log news events in activity
-        for event in news_events:
-            emit(
-                "activity",
-                {"type": "news", "message": event, "playerName": None},
-                broadcast=True,
-            )
+        # NOTE: Don't send as activity events - the "news" event handler in frontend
+        # already adds these to the activity log
 
     if winners:
         # Check for millionaires specifically

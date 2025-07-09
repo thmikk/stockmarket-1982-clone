@@ -184,12 +184,13 @@ class GameEngine:
         print(
             f"DEBUG: end_turn called, current_player_index={self.current_player_index}, players={len(self.players)}"
         )
+        
         self.current_player_index = (self.current_player_index + 1) % len(self.players)
         news_events = []
         is_round_end = False
 
         if self.current_player_index == 0:
-            print("DEBUG: Round end detected")
+            print("DEBUG: Round end detected - generating market news")
             # End of round - all players have completed their turns
             is_round_end = True
             self.round += 1
@@ -204,6 +205,9 @@ class GameEngine:
             # Generate market news at the end of each round (like gosub 4000)
             # This includes price updates
             news_events = self.generate_market_news()
+            print(f"DEBUG: Generated {len(news_events)} news events")
+        else:
+            print(f"DEBUG: Not round end, next player index: {self.current_player_index}")
 
         winners = []
         millionaires = self.check_millionaires()
@@ -406,8 +410,11 @@ class GameEngine:
     def generate_market_news(self):
         """Generate market news at end of round (exact copy of gosub 4000)"""
         import random
+        import traceback
 
         print(f"DEBUG: generate_market_news called for round {self.round}")  # Debug
+        print("DEBUG: Call stack:")
+        traceback.print_stack()
 
         news_events = []
         news_events.append("=== MARKET NEWS ===")
