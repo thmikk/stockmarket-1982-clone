@@ -12,7 +12,7 @@ class PlayerData(TypedDict):
 SHARES = ["LEAD", "ZINC", "TIN", "GOLD"]
 
 INITIAL_SHARE_PRICES = {"LEAD": 10, "ZINC": 50, "TIN": 250, "GOLD": 1250}
-MIN_PRICES = INITIAL_SHARE_PRICES.copy()
+MIN_PRICES = {"LEAD": 1, "ZINC": 5, "TIN": 25, "GOLD": 125}  # Min 1/10 av startpris
 MAX_PRICES = {k: v * 2 for k, v in INITIAL_SHARE_PRICES.items()}
 INITIAL_BALANCE = 1000
 DEFAULT_TARGET_VALUE = 1000000
@@ -42,10 +42,6 @@ class GameEngine:
         self.market_suspended: bool = False
         self.suspended_shares: Set[str] = set()
         self.suspended_shares_rounds: Dict[str, int] = {}
-
-        # Market trend tracking
-        self.market_trend: int = 0
-        self.market_trend_rounds_left: int = 0
 
         # Game state
         self.turn: int = 0
@@ -345,69 +341,74 @@ class GameEngine:
                 pdata["loan"] += interest
 
     def update_share_prices_c64(self) -> None:
-        """Update share prices using C64 algorithm"""
+        """
+        Update share prices using modified C64 algorithm with more realistic changes.
+        Prices will change more gradually and respond more naturally to market conditions.
+        """
         total_now: Dict[str, int] = {s: 0 for s in SHARES}
         for pdata in self.player_data.values():
             for s in SHARES:
                 total_now[s] += pdata["shares"][s]
 
-        difficulty_factor = {1: 0.3, 2: 0.6, 3: 1.0, 4: 1.2}[self.difficulty]
-
         for i, s in enumerate(SHARES):
             p = self.share_prices[s]
             tp = self.last_totals[s]
             tn = total_now[s]
-            tc = tn - tp
-            r = random.randint(0, 9)
+            tc = tn - tp  # Trade change (volume)
 
-            # Adjust for trading volume
-            if tc > 10:
-                r -= 1
-            if tc > 100:
-                r -= 1
-            if tc < -10:
-                r += 1
-            if tc < -100:
-                r += 1
-            if tc == 0 and random.random() < 0.3:
-                r = max(0, r - 1)
-            r = max(0, min(9, r))
+            # Base change calculation (more C64-like volatility)
+            r = random.randint(-4, 4)  # Original-style wider random range
+
+            # Volume impact (C64 original style)
+            if tc > 0:
+                r += min(3, tc // 8)  # More impact from buying
+            elif tc < 0:
+                r -= min(3, -tc // 8)  # More impact from selling
+
+            # Basic price movement scale based on share type (original C64)
+            base_step = [1, 5, 25, 125][i]
 
             # Calculate price change
-            trinn = [5, 25, 125, 625][i]
-            pc = r * trinn - 0.4 * p
-            pc *= difficulty_factor
+            pc = r * base_step
 
-            # Apply market trend
-            if self.market_trend == 1:
-                pc += trinn
-            elif self.market_trend == -1:
-                pc -= trinn
+            # Stronger difficulty scaling (like original)
+            difficulty_impact = {1: 1.0, 2: 1.5, 3: 2.0, 4: 2.5}[self.difficulty]
+            pc *= difficulty_impact
 
-            # Quantize price change
-            if pc >= 0:
-                pc = int(pc // trinn) * trinn
-            else:
-                pc = int(-(-pc // trinn)) * trinn
+            # No market trend in original C64 version
+            # Price changes were purely based on random and volume
 
-            # Adjust small changes
-            if abs(pc) < trinn / 2:
-                pc = 0
-            if pc > trinn:
-                pc = trinn
-            elif pc < -trinn:
-                pc = -trinn
+            # Price momentum dampening
+            if p > (MIN_PRICES[s] + self.max_prices[s]) / 2:
+                # Higher chance of price decrease when price is high
+                if random.random() < 0.6:
+                    pc = -abs(pc)
+            elif p < (MIN_PRICES[s] + self.max_prices[s]) / 2:
+                # Higher chance of price increase when price is low
+                if random.random() < 0.6:
+                    pc = abs(pc)
 
-            # Additional trend adjustment
-            if self.market_trend == 1:
-                pc += int(p * 0.05)
-            elif self.market_trend == -1:
-                pc -= int(p * 0.05)
+            # Random market correction (occasional bigger moves)
+            if random.random() < 0.1:  # 10% chance
+                if p > (MIN_PRICES[s] + self.max_prices[s]) * 0.75:
+                    pc -= base_step * 2  # Stronger correction when price is very high
+                elif p < (MIN_PRICES[s] + self.max_prices[s]) * 0.25:
+                    pc += base_step * 2  # Stronger correction when price is very low
 
-            # Apply change and enforce limits
-            new_price = p + pc
+            # Ensure minimum price movement when change is small
+            if 0 < abs(pc) < base_step:
+                pc = base_step if pc > 0 else -base_step
+
+            # Apply change with limits
+            new_price = int(p + pc)
             new_price = max(MIN_PRICES[s], min(self.max_prices[s], new_price))
-            self.share_prices[s] = int(new_price)
+
+            # Add tiny random variation to prevent stagnation
+            if new_price == p and random.random() < 0.3:
+                new_price += base_step if random.random() < 0.5 else -base_step
+                new_price = max(MIN_PRICES[s], min(self.max_prices[s], new_price))
+
+            self.share_prices[s] = new_price
 
         self.last_totals = total_now.copy()
 
@@ -548,12 +549,6 @@ class GameEngine:
         """Generate market news at the end of each round"""
         news_events: List[str] = []
 
-        # Update market trend
-        if self.market_trend_rounds_left > 0:
-            self.market_trend_rounds_left -= 1
-            if self.market_trend_rounds_left == 0:
-                self.market_trend = 0
-
         # Market suspension events
         r_suspend = random.randint(0, 9)
         if (
@@ -584,17 +579,6 @@ class GameEngine:
                             * (bonus_amount / 100)
                         )
                         player["balance"] += payment
-
-        # Market trend events
-        r_trend = random.randint(0, 9)
-        if r_trend < 3 and self.market_trend == 0:  # 30% chance if no current trend
-            if random.random() < 0.5:
-                self.market_trend = 1
-                news_events.append("BULL MARKET PREDICTED")
-            else:
-                self.market_trend = -1
-                news_events.append("BEAR MARKET PREDICTED")
-            self.market_trend_rounds_left = random.randint(2, 4)
 
         # Share split events (with cooldown)
         r_split = random.randint(0, 9)

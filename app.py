@@ -1,13 +1,19 @@
+from typing import Dict, List, Optional, Union, Any
+import eventlet
+import eventlet.wsgi
+import time
+import random
+import os
+
+eventlet.monkey_patch()
+
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from engine import GameEngine, PlayerData
-from typing import Dict, List, Optional, Union, Any
-import time
-import random
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "stockmarket_secret"
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode="eventlet")
 
 # Start spillmotor
 game = GameEngine()
@@ -94,11 +100,8 @@ def on_buy(data: Dict[str, Any]) -> None:
 
     success, msg = game.buy(username, share, amount)
 
-    # Check for flash news during trading, men bare 20% sjanse
-    if random.random() < 0.2:  # Bare 20% sjanse for flash news per handling
-        flash_news = game.generate_flash_news()
-    else:
-        flash_news = []
+    # Check for flash news during trading (GOSUB 2600 in original)
+    flash_news = game.generate_flash_news()
 
     # Send result message to the player who made the transaction
     emit("message", {"msg": msg})
@@ -329,6 +332,27 @@ def on_end_game_response(data: Dict[str, bool]) -> None:
         send_game_update()
 
 
+@socketio.on("update_settings")
+def on_update_settings(data: Dict[str, Any]) -> None:
+    """Handle lobby settings updates from the host"""
+    global host_player
+
+    # Get username from the data
+    username = data.get("username")
+    if username != host_player:
+        return
+
+    difficulty = int(data.get("difficulty", 1))
+    goal = int(data.get("goal", 1000000))
+
+    # Update game settings
+    game.difficulty = difficulty
+    game.target_value = goal
+
+    # Broadcast the new settings to all players
+    emit("settings_update", {"difficulty": difficulty, "goal": goal}, broadcast=True)
+
+
 if __name__ == "__main__":
     # Configure for standalone exe - disable debug and add production settings
     import webbrowser
@@ -357,16 +381,8 @@ if __name__ == "__main__":
     print("=" * 40)
 
     try:
-        # Try multiple approaches for different Werkzeug versions
-        try:
-            # First attempt - newer version with allow_unsafe_werkzeug
-            socketio.run(
-                app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True
-            )
-        except TypeError:
-            # Fallback - older version without allow_unsafe_werkzeug
-            print("Trying alternative startup method...")
-            socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+        # Using eventlet for WebSocket support
+        eventlet.wsgi.server(eventlet.listen(("0.0.0.0", 5000)), app)
     except KeyboardInterrupt:
         print("\n🛑 Game stopped by user")
     except Exception as e:

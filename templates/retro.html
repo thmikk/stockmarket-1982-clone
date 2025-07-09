@@ -2,33 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>STOCKMARKET 1982 - C64 Edition</title>
+    <title>Stockmarket 1982 - Retro</title>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='retro.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div id="screen">
-        <div id="log" class="terminal">
-            <div class="boot-screen">
-COMMODORE 64 BASIC V2
-64K RAM SYSTEM
-38911 BASIC BYTES FREE
-READY.
-
-***************************************
-*         STOCKMARKET 1982            *
-*          C64 EDITION               *
-***************************************
-
-Welcome! Enter your name to start...
-            </div>
-        </div>
+        <div id="log" class="terminal"></div>
         <div id="input-area">
-            <input type="text" id="command-input" placeholder="Type command..." autofocus />
+            <input type="text" id="command-input" placeholder="> Type command..." autofocus />
         </div>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='retro.js') }}"></script>
+    <script src="{{ url_for('static', filename='game.js') }}"></script>
 </body>
 </html>

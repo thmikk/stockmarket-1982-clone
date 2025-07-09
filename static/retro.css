@@ -15,7 +15,7 @@ body {
   box-sizing: border-box;
 }
 
-#command-input {
+#input {
   width: 100%;
   box-sizing: border-box;
   border: none;
@@ -25,33 +25,4 @@ body {
   background-color: #004400;
   color: #88ff88;
   outline: none;
-}
-
-/* Message types */
-.error-text {
-  color: #ff8888;
-}
-
-.success-text {
-  color: #ffff88;
-}
-
-.info-text {
-  color: #88ffff;
-}
-
-.player-list {
-  margin: 10px 0;
-}
-
-.market-prices {
-  margin: 10px 0;
-  color: #ffff88;
-}
-
-/* Boot screen */
-.boot-screen {
-  color: #88ff88;
-  margin-bottom: 20px;
-  line-height: 1.4;
 }
