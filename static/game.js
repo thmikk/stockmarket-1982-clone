@@ -351,7 +351,11 @@ function drawStatus(data) {
   let content = "";
 
   // Player status header
-  content += `PLAYER: ${username.toUpperCase()}\n`;
+  if (p.bankrupt) {
+    content += `PLAYER: ${username.toUpperCase()} - BANKRUPT\n`;
+  } else {
+    content += `PLAYER: ${username.toUpperCase()}\n`;
+  }
   content += `ROUND ${data.round}/10\n`;
   content += "=".repeat(50) + "\n\n";
 
