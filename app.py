@@ -1,19 +1,23 @@
-from typing import Dict, List, Optional, Union, Any
+# Monkey patch must happen before other imports
 import eventlet
-import eventlet.wsgi
-import time
-import random
-import os
 
 eventlet.monkey_patch()
 
+import os
+from typing import Dict, List, Optional, Union, Any
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from engine import GameEngine, PlayerData
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "stockmarket_secret"
-socketio = SocketIO(app, async_mode="eventlet")
+socketio = SocketIO(
+    app,
+    async_mode="eventlet",
+    logger=True,
+    engineio_logger=True,
+    cors_allowed_origins="*",
+)
 
 # Start spillmotor
 game = GameEngine()
@@ -355,34 +359,21 @@ def on_update_settings(data: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     # Configure for standalone exe - disable debug and add production settings
-    import webbrowser
-    import threading
-    import os
 
     # Set environment variable to suppress Werkzeug warning
     os.environ["WERKZEUG_RUN_MAIN"] = "true"
 
-    def open_browser():
-        """Open browser after a short delay"""
-        time.sleep(1.5)  # Wait for server to start
-        webbrowser.open("http://localhost:5000")
-
-    # Start browser in background thread
-    browser_thread = threading.Thread(target=open_browser)
-    browser_thread.daemon = True
-    browser_thread.start()
-
     print("🎮 Stockmarket Clone - C64 Style Game")
     print("=" * 40)
     print("🚀 Starting game server...")
-    print("🌐 Game will open in your browser at: http://localhost:5000")
+    print("🌐 Open in your browser: http://localhost:5000")
     print("📱 Others can join at: http://[your-ip]:5000")
     print("❌ To stop the game, close this window or press Ctrl+C")
     print("=" * 40)
 
     try:
-        # Using eventlet for WebSocket support
-        eventlet.wsgi.server(eventlet.listen(("0.0.0.0", 5000)), app)
+        # Use socketio.run with eventlet
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt:
         print("\n🛑 Game stopped by user")
     except Exception as e:
