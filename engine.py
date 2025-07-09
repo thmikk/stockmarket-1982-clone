@@ -72,7 +72,7 @@ class GameEngine:
         pdata = self.player_data[username]
         if pdata.get("bankrupt", False):
             return False, "Cannot trade - you are bankrupt!"
-            
+
         # Increment ch counter for each buy attempt (like original line 3300)
         self.ch += 1
 
@@ -102,7 +102,7 @@ class GameEngine:
         pdata = self.player_data[username]
         if pdata.get("bankrupt", False):
             return False, "Cannot trade - you are bankrupt!"
-            
+
         # Increment ch counter for each sell attempt (like original line 3300)
         self.ch += 1
 
@@ -195,24 +195,26 @@ class GameEngine:
         print(
             f"DEBUG: end_turn called, current_player_index={self.current_player_index}, players={len(self.players)}"
         )
-        
+
         # Find next non-bankrupt player (like original line 515-520)
         attempts = 0
         while attempts < len(self.players):
-            self.current_player_index = (self.current_player_index + 1) % len(self.players)
+            self.current_player_index = (self.current_player_index + 1) % len(
+                self.players
+            )
             current_player = self.players[self.current_player_index]
-            
+
             # Skip bankrupt players (like original pl(p)=-1 check)
             if not self.player_data[current_player].get("bankrupt", False):
                 break
-                
+
             attempts += 1
-        
+
         # If all players are bankrupt, end game
         if attempts >= len(self.players):
             print("DEBUG: All players bankrupt - ending game")
             return ["GAME OVER - ALL BANKRUPT"], [], True
-        
+
         news_events = []
         is_round_end = False
 
@@ -222,10 +224,14 @@ class GameEngine:
             is_round_end = True
             self.round += 1
             self.last_prices = self.share_prices.copy()
-            
-            # Collect loan interest and handle bankruptcies
-            bankruptcy_messages = self.collect_loan_interest()
-            
+
+            # Reset suspended shares each round (like original line 760)
+            self.suspended_shares.clear()
+            self.suspended_shares_rounds.clear()
+
+            # Collect loan interest
+            self.collect_loan_interest()
+
             self.buy_volumes = {k: 0 for k in SHARES}
             self.sell_volumes = {k: 0 for k in SHARES}
 
@@ -235,17 +241,20 @@ class GameEngine:
             # Generate market news at the end of each round (like gosub 4000)
             # This includes price updates
             news_events = self.generate_market_news()
-            
-            # Add bankruptcy messages to news events
-            if bankruptcy_messages:
-                news_events.extend([""] + bankruptcy_messages)
-            
+
             print(f"DEBUG: Generated {len(news_events)} news events")
         else:
-            print(f"DEBUG: Not round end, next player index: {self.current_player_index}")
+            print(
+                f"DEBUG: Not round end, next player index: {self.current_player_index}"
+            )
 
         winners = []
         millionaires = self.check_millionaires()
+
+        # Check for bankruptcy at end of each turn (like original line 6000-6080)
+        bankruptcy_messages = self.check_end_of_turn_bankruptcy()
+        if bankruptcy_messages:
+            news_events.extend([""] + bankruptcy_messages)
 
         for name in self.players:
             pdata = self.player_data[name]
@@ -263,28 +272,32 @@ class GameEngine:
 
         return winners, news_events, is_round_end
 
-    def collect_loan_interest(self):
-        """Collect loan interest and check for bankruptcy (original line 3800-3835)"""
+    def check_end_of_turn_bankruptcy(self):
+        """Check bankruptcy at end of turn like original line 6000-6080"""
         bankruptcy_messages = []
         
+        for username, pdata in self.player_data.items():
+            # Calculate total value (line 6020-6030)
+            total_value = pdata["balance"]
+            for share in SHARES:
+                total_value += pdata["shares"][share] * self.share_prices[share]
+            total_value -= pdata["loan"]
+            
+            # If total value <= 0, player goes bankrupt (line 6040)
+            if total_value <= 0:
+                pdata["balance"] = 0
+                pdata["loan"] = 0
+                pdata["bankrupt"] = True
+                bankruptcy_messages.append(f"{username}: YOU ARE BANKRUPT SIR!")
+        
+        return bankruptcy_messages
+
+    def collect_loan_interest(self):
+        """Collect loan interest (original line 3800-3835)"""
         for username, pdata in self.player_data.items():
             if pdata["loan"] > 0:
                 interest = int(pdata["loan"] * 0.10)
                 pdata["loan"] += interest
-                
-                # Check if player can still afford the loan (like original line 3800)
-                total_assets = pdata["balance"]
-                for share in SHARES:
-                    total_assets += pdata["shares"][share] * self.share_prices[share]
-                
-                # If loan exceeds total assets, force bankruptcy process
-                if pdata["loan"] > total_assets:
-                    is_bankrupt, msg = self.check_bankruptcy(username)
-                    if is_bankrupt:
-                        pdata["bankrupt"] = True  # Mark as bankrupt
-                        bankruptcy_messages.append(f"{username}: {msg}")
-        
-        return bankruptcy_messages
 
     def update_share_prices_c64(self):
         total_now = {s: 0 for s in SHARES}

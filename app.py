@@ -15,7 +15,9 @@ processing_end_turn = False  # Prevent multiple rapid end_turn calls
 
 def send_game_update():
     """Helper function to send game updates with consistent data"""
-    print(f"DEBUG: send_game_update called for round {game.round + 1}, turn {game.turn + 1}")
+    print(
+        f"DEBUG: send_game_update called for round {game.round + 1}, turn {game.turn + 1}"
+    )
     emit(
         "update",
         {
