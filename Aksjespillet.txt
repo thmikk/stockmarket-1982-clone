@@ -1,0 +1,428 @@
+!--------------------------------------------------
+!- lørdag 1. juni 2024 08:53:51
+!- Import of : 
+!- e:\onedrive thm\onedrive\c64\stockmarket.prg
+!- Commodore 64
+!--------------------------------------------------
+1 rem ** stockmarket *************************** copyright asp software 1982****
+2 poke 53280,12:poke 53281,2:print chr$(5);chr$(142);chr$(8)
+3 print "{clear}":d$="{home}{down*25}":fori=1to40:bs$=bs$+" ":next
+4 r2$="{right*41}":r1$=right$(r2$,7)
+5 poke 788,peek(788)+3
+6 rem ** Initialize RNG with system clock **
+7 rnd(-ti)
+10 print "{clear}{down*3}{space*10}{reverse on}{sh pound} {cm asterisk}{reverse off} {reverse on}{space*3}{reverse off} {reverse on}{sh pound} {cm asterisk}{reverse off} {reverse on}{sh pound} {cm asterisk}{reverse off} {reverse on} {reverse off} {reverse on} {reverse off}"
+15 print "{space*10}{reverse on} {reverse off} {reverse on}{cm i}{reverse off}{space*2}{reverse on} {reverse off}{space*2}{reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on}{cm i}{reverse off} {reverse on} {reverse off} {sh pound}"
+20 print "{space*10}{cm asterisk}{reverse on} {cm asterisk}{reverse off}{space*2}{reverse on} {reverse off}{space*2}{reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off}{space*3}{reverse on}{space*2}{reverse off}"
+25 print "{space*10}{cm i} {reverse on} {reverse off}{space*2}{reverse on} {reverse off}{space*2}{reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {cm i} {reverse on} {reverse off} {reverse on}{cm asterisk}{reverse off}"
+30 print "{space*10}{cm asterisk}{reverse on} {reverse off}{sh pound}{space*2}{reverse on} {reverse off}{space*2}{cm asterisk}{reverse on} {reverse off}{sh pound} {cm asterisk}{reverse on} {reverse off}{sh pound} {reverse on} {reverse off} {reverse on} {reverse off}"
+35 print
+40 print "{space*8}{reverse on} {cm asterisk}{sh pound} {reverse off} {reverse on}{sh pound} {cm asterisk}{reverse off} {reverse on}{space*2}{cm asterisk}{reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on}{space*3}{reverse off} {reverse on}{space*3}{reverse off}"
+45 print "{space*8}{reverse on} {reverse off}{cm asterisk}{sh pound}{reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {sh pound} {reverse on} {reverse off}{space*4}{reverse on} {reverse off}"
+50 print "{space*8}{reverse on} {reverse off}{space*2}{reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on}{space*2}{reverse off}{sh pound} {reverse on}{space*2}{reverse off}{space*2}{reverse on}{space*2}{reverse off}{space*3}{reverse on} {reverse off}"
+55 print "{space*8}{reverse on} {reverse off}{space*2}{reverse on} {reverse off} {reverse on}{space*3}{reverse off} {reverse on} {reverse off} {reverse on}{cm asterisk}{reverse off} {reverse on} {reverse off} {reverse on}{cm asterisk}{reverse off} {reverse on} {reverse off}{space*4}{reverse on} {reverse off}"
+60 print "{space*8}{reverse on} {reverse off}{space*2}{reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on} {reverse off} {reverse on}{space*3}{reverse off}{space*2}{reverse on} {reverse off}"
+65 print "{space*8}{cm i*23}"
+70 a$="copyright asp software{space*2}1982":x=5:y=23:gosub 4400
+80 for i=1 to 2000:next i
+100 print "{clear}":poke 53280,12:poke 53281,5:print chr$(14);"{dark gray}"
+110 dimsh$(4),h(6,4),bb(6),p(4),n$(6),q(6),bl(6),pl(6),tn(6),tp(6)
+120 def fna(x)=int(rnd(ti)*x+1)
+130 def fnb(x)=int(rnd(ti)*x+1)-1
+140 fori=1to4:readsh$(i):next i
+150 data "LEAD","ZINC","TIN","GOLD"
+160 p(1)=10:p(2)=50:p(3)=250:p(4)=1250:tu=0:su=0
+170 fori=1to6:bb(i)=1000:next i
+200 print"{clear}{down*2}{space*6}Do you want instructions ?";
+210 gosub 2050
+220 if an=1 then gosub 5000
+230 goto 300
+250 x$="":xx$=""
+260 get x$:if x$="" then 260
+270 if x$=chr$(13) then print bs$:return
+280 printx$;
+290 xx$=xx$+x$:goto 260
+300 print"{clear}{down*2}How many players (max 6)...";
+305 get nu$:if nu$="" then 305
+310 nu=int(val(nu$))
+340 if nu<1 or nu>6 then print "{up*2}":goto 300
+345 print nu
+350 fork=1tonu
+360 print left$(d$,3+k*2);
+370 print "Enter name of player";k;"{space*17}{left*15}";:gosub 800
+380 n$(k)=t$
+390 if len(n$(k))>15 then print left$(d$,4+k*2);"{yellow}NAME{sh space}TOO{sh space}LONG{dark gray}":goto 360
+400 next k
+405 print left$(d$,21);"Select level of difficulty"
+410 print "{down}1 (easy) to 4 (hard) - ";
+415 get di$:if di$="" then 415
+420 di=int(val(di$))
+425 if di<1 or di>4 then 405
+430 print di
+435 di=abs(di-5)
+500 for p=1 to nu
+510 gosub 2300
+515 ifpl(p)=-1thenx=20:a$="{space*16}{white}BANKRUPT{dark gray}":gosub2230
+520 if pl(p)=-1 then t1=4:gosub 2000:goto 700
+525 x=15:y=6:gosub 2120:gosub 2600:x=15:y=6:gosub 2120:print left$(d$,16);
+530 print"Type 'B' to buy, 'S' to sell"
+535 print"{up}or 'Q' to end your turn"
+540 poke 198,0
+545 get b$:if b$="" then 545
+550 if b$="q" then 700
+560 if b$="b" then gosub 3500:goto 520
+570 if b$="s" then gosub 3700:goto 515
+580 goto 540
+600 s$=""
+610 poke 198,0
+620 get c$:if c$="" then 620
+630 if s$<>"" and asc(c$)=13 then print :return
+640 if asc(c$)<48 or asc(c$)>57 then 610
+650 print c$;
+660 s$=s$+c$:if len(s$)>8 then print:return
+670 goto 610
+700 ch=0:next p
+705 p=nu
+710 x=15:y=8:gosub2120:gosub4000
+715 gosub6000:ifan=1 then 1000
+720 print "{clear}"
+730 printleft$(d$,5);:gosub2150
+740 printleft$(d$,11);:gosub2150
+750 printleft$(d$,7);"{space*2}End of turn ...................";tu
+760 for q=1 to 4:q(q)=0:next q
+770 print"{down}{space*2}Do you want to end the game ... ?";:gosub 2050
+780 if an<>1 then 500
+790 goto 1000
+800 t$=""
+810 poke 198,0
+820 get c$:if c$="" then 820
+830 if t$<>"" and asc(c$)=13 then print bs$:return
+840 if asc(c$)=32 then 870
+850 if asc(c$)<65 or asc(c$)>218 then 810
+860 if asc(c$)>90 and asc(c$)<193 then 810
+870 print c$;
+880 t$=t$+c$:if len(t$)>15 then print:return
+890 goto 810
+999 rem ** end it
+1000 fork=1tonu
+1010 fork=1tonu
+1020 forj=1to4
+1030 bb(k)=bb(k)+h(k,j)*p(j)
+1040 next j
+1050 bb(k)=bb(k)-bl(k)
+1060 next k
+1070 print"{clear}"
+1080 print"{down}{space*14}{yellow}END{sh space}OF{sh space}GAME{dark gray}":print "{space*14}***********"
+1090 print"{down}{space*5}{cyan}ALL{sh space}SHARES{sh space}SOLD{sh space}AT{sh space}FACE{sh space}VALUE{dark gray}"
+1095 print"{space*5}*****************************"
+1100 print"Player{space*10}Amount made{space*6}Score"
+1105 print"******{space*10}***********{space*6}*****"
+1110 fork=1tonu
+1120 pm=int(100*(bb(k)-1000))/100:ss=int(bb(k)/(tu+di*5))
+1130 print left$(d$,10+k);n$(k)
+1133 print left$(d$,10+k);left$(r2$,16);"{pound}";pm
+1136 print left$(d$,10+k);left$(r2$,32);ss
+1140 print:next k
+1150 print:print"{space*3}{light gray}Do you want to play again (Y/N) ?{dark gray}";:gosub 2050
+1160 if an=1 then run
+1990 end
+1999 rem ** delay(s)
+2000 fort=1tot1*200:next t
+2010 return
+2049 rem ** ans
+2050 an=0
+2060 poke 198,0
+2070 get a$:if a$=""then 2070
+2080 if a$="y" then an=1:return
+2090 if a$="n" then return
+2100 goto 2050
+2119 rem ** clear
+2120 print left$(d$,x+1);
+2130 for l=1toy:printbs$;
+2140 next l:return
+2149 rem ** line
+2150 fori1=1to39
+2160 print"*";
+2170 next i1
+2180 print"*"
+2220 return
+2229 rem ** dbl
+2230 printleft$(d$,x+1);a$
+2240 if xx<1000000 then return
+2250 printleft$(d$,x-1);"{white} **************************************"
+2260 printleft$(d$,x+3);"{white} **************************************{dark gray}"
+2270 forii=1to10:poke53281,2:forkk=1to50:nextkk:poke53281,5
+2280 forkk=1to50:nextkk:nextii
+2290 return
+2299 rem ** display
+2300 print"{clear}"
+2320 print"{space*2}Shares held by{space*3}* Market prices"
+2340 x1%=(20-len(n$(p)))/2
+2350 printtab(x1%-1);chr$(159);n$(p);tab(19);"{dark gray}*"
+2360 printtab(19);"*"
+2370 printtab(1);"LEAD =";tab(19);"* Multibody"
+2380 printtab(19);"* Lead Mines"
+2390 printtab(1);"ZINC =";tab(19);"* T.I.A.F"
+2400 printtab(19);"* Zinc Inc."
+2410 printtab(1);"TIN{space*2}=";tab(19);"* Erskine"
+2420 printtab(19);"* Tin Plate"
+2430 printtab(1);"GOLD =";tab(19);"* S.Beere"
+2440 printtab(19);"* Gold Mines"
+2450 printtab(1);"Bank =";tab(19);"*"
+2460 gosub 2150
+2470 fori =1to4
+2473 p9$="":ifp(i)=int(p(i)) then p9$=".00"
+2475 p1=p(i):p1=p1+.005:p1=p1*100:p1=int(p1):p1=p1/100
+2477 p1$=right$(str$(p1),len(str$(p1))-1):p1$=p1$+p9$
+2479 p1$=right$("{space*5}"+p1$,8)
+2480 printleft$(d$,i*2+4);tab(32);"{space*5}"
+2485 printleft$(d$,i*2+4);tab(32);p1$
+2490 next i
+2500 gosub3000
+2510 fori=1to4
+2520 h$=right$(str$(h(p,i)),len(str$(h(p,i)))-1)
+2530 h$=r1$+right$("{space*10}"+h$,10)
+2540 printleft$(d$,i*2+3);h$
+2550 next i
+2560 ifbl(p)>0thenprintleft$(d$,15);"{cyan}Your debt to the bank ={dark gray}";bl(p)
+2570 return
+2599 rem ** flash
+2600 r=fnb(10):if r<5 then return
+2610 print left$(d$,18);"{space*12}!! {yellow}NEWSFLASH{dark gray} !!{space*6}"
+2620 t1=2:gosub 2000:x=18:y=1:gosub 2120
+2630 if ch>12 then 2870
+2640 if ch>10 then 2950
+2650 if r>4+di then 2810
+2660 r=fnb(10)
+2670 if r=0 then 2790
+2680 if r>4 then 2750
+2690 printleft$(d$,18);" BONUS{sh space}PAYMENT{sh space}TO{sh space}ALL{sh space}";sh$(r);" SHAREHOLDERS"
+2700 t1=3:gosub2000:r1=fnb(10)
+2710 if r1=0then x=17:a$=" PAYMENT{sh space}SUSPENDED{sh space}BECAUSE{sh space}OF{sh space}STRIKE{space*3}":gosub 2230
+2715 if r1=0then t1=3:gosub2000:return
+2720 print" PAYMENT ={sh space}";r1*10;" % OF{sh space}SHARE{sh space}VALUE{space*7}"
+2730 fori=1tonu:bb(i)=bb(i)+0.1*r1*h(i,r)*p(r):nexti
+2740 gosub3000:t1=3:gosub2000:return
+2750 a$="{space*13}TAX .. REFUND{space*2}":x=18:gosub 2230:t1=3:gosub 2000
+2755 r=fnb(10)
+2760 ifr=0thena$="{space*4}ERROR{sh space}IN{sh space}TAX{sh space}OFFICE ! NO{sh space}REFUND":x=18:gosub2230
+2765 if r=0 then t1=3:gosub 2000:return
+2770 print"{space*4}REFUND ={sh space}";10*r;" % OF{sh space}BANK{sh space}BALANCE"
+2780 bb(p)=bb(p)+0.1*r*bb(p):gosub3000:t1=3:gosub2000:return
+2790 fori=1to4:q(i)=-1:nexti
+2800 a$="{space*4}{light gray}ALL{sh space}MARKET{sh space}DEALINGS{sh space}SUSPENDED{dark gray}":su=1:x=18:gosub2230
+2805 t1=3:gosub2000:return
+2810 r=fnb(10)
+2820 if r=0 then 2930
+2830 if r>4 then 2870
+2840 printleft$(d$,18);"{space*2}";sh$(r);" SHARES{sh space}BONUS{sh space}ISSUE{sh space}OF{sh space}1 SHARE"
+2845 print"{space*5}FOR{sh space}EVERY{sh space}TWO{sh space}SHARES{sh space}HELD"
+2850 fori=1tonu:h(i,r)=h(i,r)+int(h(i,r)/2):nexti
+2860 x=r:gosub3100:t1=3:gosub2000:return
+2870 a$="{space*3}CAPITAL{sh space}GAINS{sh space}TAX INVESTIGATIONS":x=18:gosub2230
+2880 r=fnb(10):t1=3:gosub2000
+2890 if r=0 then a$=" TAX{sh space}OFFICE{sh space}RELENTS !...NO{sh space}TAX{sh space}DEMAND":x=18:gosub2230
+2895 if r=0 then t1=3:gosub2000:return
+2900 print "{down}{space*3}DEMAND{sh space}OF ";10*r;" % OF{sh space}BANK{sh space}BALANCE"
+2910 bb(p)=bb(p)-0.1*r*bb(p):gosub3000
+2920 t1=3:gosub 2000:return
+2930 a$="{space*12}{cyan}MARKET{sh space}VERY{sh space}WEAK{dark gray}{space*9}":x=17:gosub2230
+2940 t1=3:gosub 2000:return
+2950 print left$(d$,17);"{space*2}TRADING{sh space}PRACTICES{sh space}UNDER{sh space}SUSPICION":ch=100
+2960 print"{space*7}TAX{sh space}OFFICIALS{sh space}INVESTIGATE{dark gray}":t1=3:gosub 2000:return
+2999 rem ** bank
+3000 b9$="":ifbb(p)=int(bb(p)) then b9$=".00"
+3010 b1=bb(p):b1=b1+.005:b1=b1*100:b1=int(b1):b1=b1/100
+3020 b1$=right$(str$(b1),len(str$(b1))-1)
+3025 b1$=b1$+b9$
+3030 b1$=r1$+right$("{space*9}"+b1$,10)
+3040 printleft$(d$,13);r1$;"{space*10}"
+3050 printleft$(d$,13);b1$
+3060 return
+3099 rem ** share
+3100 h$=right$(str$(h(p,x)),len(str$(h(p,x)))-1)
+3110 h$=r1$+right$("{space*10}"+h$,10)
+3130 printleft$(d$,x*2+3);r1$;"{space*10}"
+3140 printleft$(d$,x*2+3);h$
+3150 return
+3199 rem ** price
+3200 p9$="":ifp(x)=int(p(x)) then p9$=".00"
+3205 p9$="":ifp(x)=int(p(x)) then p9$=".00"
+3210 p1=p(x):p1=p1+.005:p1=p1*100:p1=int(p1):p1=p1/100
+3215 p1$=str$(p1):p1$=p1$+p9$
+3217 p1$=right$("{space*5}"+p1$,8)
+3220 printleft$(d$,x*2+4);tab(32);p1$
+3240 return
+3299 rem ** quest
+3300 ch=ch+1:i%=0:x=15:y=3:gosub 2120
+3310 printleft$(d$,16);"Which shares will you ";a$;" Sir ?"
+3320 print "key 'L' for Lead...'T' for Tin"
+3330 print "{up}{space*4}'Z' for Zinc...'G' for Gold"
+3340 print "{space*4}'Q' to STOP ";a$;"ing"
+3350 poke 198,0
+3355 get b$:if b$=""then 3355
+3360 if b$="l" then i%=1
+3370 if b$="z" then i%=2
+3380 if b$="t" then i%=3
+3390 if b$="g" then i%=4
+3400 if b$="q" then i%=5
+3410 if i%=0 then 3350
+3415 x=15:y=6:gosub 2120:if i%=5 then return
+3420 ifq(i%)=-1then print left$(d$,19);" DEALINGS{sh space}IN{sh space}";sh$(i%);" SUSPENDED{sh space}SIR"
+3425 if q(i%)=-1 then t1=3:gosub 2000:x=18:y=1:gosub 2120:goto 3300
+3430 print left$(d$,16);"How many ";sh$(i%);" shares will you ";a$
+3440 print"{up}Sir ? (if none enter 0).... ";:gosub600:if s$="0"then ss=0:goto3470
+3450 if val(s$)<1 then print"{up}":goto 3440
+3460 ss=val(s$)
+3470 return
+3499 rem ** buy
+3500 a$="buy":gosub3300
+3510 if i%=5 then return
+3520 b=ss*p(i%):if b<=bb(p)then3620
+3530 cr=int(.5*(h(p,1)*p(1)+h(p,2)*p(2)+h(p,3)*p(3)+h(p,4)*p(4)+bb(p)))
+3535 cr=int(cr-bl(p))
+3540 if b<bb(p)+cr-0.5*bl(p) then 3570
+3550 printleft$(d$,18);"Sorry Sir, you cannot raise enough cash"
+3560 t1=3:gosub 2000:return
+3570 printleft$(d$,18);"You do not have enough cash. The bank"
+3575 printleft$(d$,19);"will lend you {pound}";int(b-bb(p));" at the normal"
+3580 printleft$(d$,20);"interest rates. Will you borrow ?";:gosub 2050
+3590 x=18:y=5:gosub2120
+3600 if an<>1 then return
+3610 bl(p)=int(bl(p)+b-bb(p)):bb(p)=bb(p)+int(b-bb(p))
+3620 bb(p)=bb(p)-b:h(p,i%)=h(p,i%)+ss
+3625 ifbl(p)>0thenprintleft$(d$,15);"{cyan}Your debt to the bank ={dark gray}";bl(p)
+3630 gosub3000:x=i%:gosub3100
+3640 return
+3699 rem ** sell
+3700 a$="sell":gosub3300
+3710 if i%=5 and bl(p)>0 then 3785
+3720 if i%=5 then return
+3730 ifss>h(p,i%) then printleft$(d$,18);"You do not own that many ";sh$(i%);
+3740 ifss>h(p,i%) then print" shares !":t1=3:gosub2000:return
+3750 h(p,i%)=h(p,i%)-ss:bb(p)=bb(p)+ss*p(i%)
+3760 gosub3000:x=i%:gosub3100
+3770 if bl(p)=0 then return
+3775 ifbl(p)>bb(p) thenprintleft$(d$,18);"{white}You need more cash to repay the bank"
+3780 if bl(p)>bb(p) thenprint"{dark gray}":t1=3:gosub 2000:x=18:y=1:gosub 2120:goto 3700
+3785 if bl(p)<=bb(p) then printleft$(d$,19);"Bank takes loan repayment of {pound}";
+3790 if bl(p)<=bb(p) then print bl(p):t1=3:x=14:y=5:gosub 2000
+3795 if bl(p)<=bb(p)then bb(p)=bb(p)-bl(p):bl(p)=0:gosub 3000:goto 2120
+3800 print left$(d$,18);"{white}Bank unhappy...":t1=3:gosub 2000:x=18:y=1:gosub 2120
+3805 print"You are forced into liquidation !{dark gray}"
+3810 for j=1to4:bb(p)=bb(p)+h(p,j)*p(j):h(p,j)=0:x=j:gosub 3100:gosub 3000
+3815 next j
+3820 if bb(p)-bl(p)>=0 then 3785
+3825 bb(p)=bb(p)-bl(p)
+3830 if bb(p)<0 then pl(p)=-1:printleft$(d$,20);"{white}YOU{sh space}ARE{sh space}BANKRUPT{sh space}SIR!{dark gray}"
+3835 if bb(p)<0 then bb(p)=0:bl(p)=0:t1=3:gosub 2000:return
+3840 bl(p)=0:x=15:y=1:gosub 2120:gosub 3000:t1=3:gosub2000
+3850 return
+3999 rem ** news
+4000 for i=1 to 4
+4010 tn(i)=0:nexti
+4020 printleft$(d$,16);"{space*11}==={yellow}MARKET{sh space}NEWS{dark gray}==="
+4030 fori=1to4:r=fnb(10):if r=0 then gosub4500
+4040 if su=1 then 4170
+4050 if q(i)=-1 then 4170
+4060 fork=1tonu:tn(i)=tn(i)+h(k,i):next k
+4070 tc=tn(i)-tp(i)
+4080 r=r-1*(tc>10)-1*(tc>100)+1*(tc<-10)+1*(tc<-100)
+4090 tp(i)=tn(i):ifr<0 then r=0
+4100 if r>9 then r=9
+4110 pc=r*(5^(i-1))-0.4*p(i):pc=int(100*pc)/100:ifpc<.1andpc>-.1thenpc=0
+4120 a$=sh$(i):x=0:y=16+i:gosub4400
+4130 if pc=0 then a$="HOLDING{sh space}AT{sh space}PRESENT{sh space}VALUE":x=5:y=16+i:gosub 4400:goto 4170
+4135 pc$=str$(abs(pc)):pc$=right$(pc$,len(pc$)-1)
+4136 if left$(right$(pc$,2),1)="." then pc$=pc$+"0"
+4137 if pc=int(pc) then pc$=pc$+".00"
+4138 pc$=right$("{space*6}"+pc$,7)
+4140 if pc>0 then a$="UP{sh space}BY ":x=5:y=16+i:gosub 4400:t1=1:gosub 2000
+4150 if pc<0 then a$="DOWN{sh space}BY{sh space}":x=5:y=16+i:gosub 4400:t1=1:gosub 2000
+4155 a$=pc$:x=15:gosub 4400
+4160 p(i)=p(i)+pc:x=i:gosub 3200
+4170 next i:su=0
+4180 br=fna(20)+fna(21)
+4190 ifbr>2 then 4230
+4200 r=fnb(10):if r<>0 then printleft$(d$,23);
+4205 if r<>0 then print "{light gray}BANK{sh space}ALMOST{sh space}FAILED....NO{sh space}INTEREST{sh space}PAID{dark gray}":goto 4290
+4210 print left$(d$,23)"{white}BANK{sh space}FAILS !!{dark gray}":for k=1 to nu:bb(k)=0:bl(k)=0:next k
+4220 gosub 3000:t1=3:gosub 2000
+4225 printleft$(d$,23)"{yellow}A NEW{sh space}BANK{sh space}HAS{sh space}BEEN{sh space}SET{sh space}UP{dark gray}":goto 4290
+4230 a$="Bank interest rate ":x=7:y=22:gosub 4400:t1=1:gosub 2000
+4240 a$=right$(str$(br),len(str$(br))-1)+" %":x=26:y=22:gosub 4400
+4260 for k=1 to nu:bb(k)=bb(k)+bb(k)*(br/100):bb(k)=int(bb(k)*100)/100
+4270 bl(k)=bl(k)+bl(k)*((br+2)/100):bl(k)=int(bl(k))
+4280 next k
+4290 tu=tu+1:t1=3:gosub 2000
+4300 return
+4399 rem ** tt
+4400 c1=len(a$)
+4420 fori1=1toc1
+4430 printleft$(d$,y+1);right$(r2$,x+i1);mid$(a$,i1,1);
+4440 if mid$(a$,i1,1)=" " then 4460
+4450 s=54272:poke s+4,0:poke s+24,0:poke s+24,15:for ii=1 to 8:next ii
+4460 next i1
+4470 return
+4499 rem ** nasty
+4500 r=fnb(10):if su>0 and r>1 and r<6 then return
+4510 print left$(d$,17+i);"{space*10}!! {yellow}NEWSFLASH{dark gray} !!"
+4520 t1=3:gosub 2000
+4530 x=i+17:y=1:gosub 2120
+4535 if r>5 then 4600
+4540 if r>1 then print left$(d$,17+i);" ALL{sh space}DEALINGS{sh space}IN{sh space}";sh$(i);" SUSPENDED"
+4545 if r>1 then q(i)=-1:t1=3:gosub 2000:return
+4550 print left$(d$,17+i);"{white} ";sh$(i);" BANKRUPT...";sh$(i);" SHARES{sh space}WORTHLESS"
+4560 print "{dark gray}":for k=1 to nu:h(k,i)=0:next k
+4570 x=i:gosub 3100:t1=3:gosub 2000:x=16+i:y=1:gosub 2120
+4580 print left$(d$,17+i);" ";sh$(i);" ARE{sh space}TRADING{sh space}AGAIN{space*16}"
+4590 p(i)=10*(5^(i-1)):x=i:gosub 3200:t1=3:gosub 2000:x=16+i:y=1:gosub 2120
+4595 return
+4600 print left$(d$,17+i);"{light gray} ";sh$(i);" TAKEN OVER{sh space}BY{sh space}A{sh space}CONSORTIUM{dark gray}"
+4610 t1=3:gosub 2000:r=fnb(10)
+4620 if r=0 then print left$(d$,17+i)" TAKE-OVER{sh space}BID{sh space}HAS{sh space}FAILED !{space*11}"
+4625 if r=0 then t1=3:gosub 2000:x=16+i:y=1:gosub 2120:return
+4630 print left$(d$,17+i);bs$
+4635 print left$(d$,17+i);" SHARES{sh space}SOLD{sh space}OFF{sh space}AT ";20*r;"% OF{sh space}VALUE"
+4640 for k=1 to nu:bb(k)=bb(k)+.2*r*p(i)*h(k,i):h(k,i)=0:next k
+4650 gosub 3000:x=i:gosub 3100:t1=3:gosub 2000
+4660 x=16+i:y=1:gosub 2120
+4670 return
+4999 rem ** instruct
+5000 print"{clear}"
+5010 print" The aim of 'STOCKMARKET' is to make"
+5020 print" money by buying and selling shares in{space*3}the four mining companies."
+5030 print"{down} At the start of the game each player"
+5040 print" has {pound}1000 in the bank and the price"
+5050 print" of each share is set at approximately"
+5060 print" half of it's maximum value."
+5070 print"{down} When all the players have bought or"
+5080 print" sold as many shares as they want, the"
+5090 print" price of the shares are adjusted so{space*5}that:"
+5100 print"{down}{space*2}1) High prices are likely to go down"
+5110 print"{space*2}2) Low prices are likely to go up"
+5120 print"{down} The market may be 'bulled' or 'beared'"
+5130 print" by heavy buying or selling."
+5140 print"{down*3}{space*7}ARE YOU{sh space}READY{sh space}FOR{sh space}MORE ?"
+5150 gosub 2050
+5160 if an<>1then 5020
+5170 print"{clear}{down*3} During the course of the game various"
+5180 print"{down} {yellow}NEWSFLASH{dark gray} messages will interrupt play."
+5190 print"{down} ** Watch out for CAPITAL{sh space}GAINS{sh space}TAX **"
+5200 print"{white}{down*2}{space*5}WHEN{sh space}ONE{sh space}OR{sh space}MORE{sh space}PLAYERS{sh space}HAVE"
+5205 print"{down}{space*15}{pound}1 MILLION"
+5210 print"{down}{space*10}THE{sh space}GAME{sh space}IS{sh space}FINISHED{dark gray}"
+5230 print left$(d$,22);"{space*4}Hit any key to start the game."
+5240 poke198,0
+5250 get a$:if a$="" then 5250
+5260 return
+5999 rem ** test
+6000 an=0
+6010 fori2=1tonu
+6020 xx=0:forj2=1to4:xx=xx+h(i2,j2)*p(j2):nextj2
+6030 xx=xx+bb(i2)-bl(i2)
+6040 if xx<=0 then bb(i2)=0:bl(i2)=0:pl(i2)=-1
+6050 ifxx>=1000000thenan=1:a$="{white}{space*4}"+n$(i2)+" IS{sh space}A{sh space}MILLIONAIRE":print"{clear}"
+6060 ifxx>=1000000then x=6:gosub 2230:t1=3:gosub2000
+6070 next i2
+6080 return

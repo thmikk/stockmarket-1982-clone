@@ -1,0 +1,7 @@
+flask==2.3.3
+flask-socketio==5.3.4
+yfinance==0.2.18
+pandas==2.0.3
+requests==2.31.0
+python-socketio==5.8.0
+eventlet==0.33.3

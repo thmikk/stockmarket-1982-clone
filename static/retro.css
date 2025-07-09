@@ -1,0 +1,28 @@
+body {
+  margin: 0;
+  background-color: #005500;
+  color: #88ff88;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  overflow: hidden;
+}
+
+#screen {
+  padding: 10px;
+  white-space: pre-wrap;
+  height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+#input {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  padding: 10px;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  background-color: #004400;
+  color: #88ff88;
+  outline: none;
+}
