@@ -1,7 +1,9 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-from engine import GameEngine
+from engine import GameEngine, PlayerData
+from typing import Dict, List, Optional, Union, Any
 import time
+import random
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "stockmarket_secret"
@@ -10,10 +12,17 @@ socketio = SocketIO(app)
 # Start spillmotor
 game = GameEngine()
 host_player = None  # Track who is the host
-processing_end_turn = False  # Prevent multiple rapid end_turn calls
+processing_end_turn = False  # Prevent multiple rapid end turn calls
 
 
-def send_game_update():
+# Types for socket events
+GameState = Dict[str, Union[Dict[str, PlayerData], Dict[str, int], str, List[str], int]]
+GameUpdate = Dict[
+    str, Union[Dict[str, Any], Dict[str, int], Optional[str], List[str], int]
+]
+
+
+def send_game_update() -> None:
     """Helper function to send game updates with consistent data"""
     print(
         f"DEBUG: send_game_update called for round {game.round + 1}, turn {game.turn + 1}"
@@ -33,12 +42,12 @@ def send_game_update():
 
 
 @app.route("/")
-def index():
+def index() -> str:
     return render_template("index.html")
 
 
 @socketio.on("join")
-def on_join(data):
+def on_join(data: Dict[str, str]) -> None:
     global host_player
     username = data["username"]
     game.add_player(username)
@@ -59,9 +68,9 @@ def on_join(data):
 
 
 @socketio.on("start_game")
-def on_start_game(data):
-    difficulty = data.get("difficulty", 1)
-    goal = data.get("goal", 1000000)
+def on_start_game(data: Dict[str, Any]) -> None:
+    difficulty = int(data.get("difficulty", 1))
+    goal = int(data.get("goal", 1000000))
 
     # Reset game with new settings
     game.difficulty = difficulty
@@ -72,14 +81,24 @@ def on_start_game(data):
 
 
 @socketio.on("buy")
-def on_buy(data):
-    username = data["username"]
-    share = data["share"]
-    amount = int(data["amount"])
+def on_buy(data: Dict[str, Any]) -> None:
+    username: str = str(data["username"])
+    share: str = str(data["share"])
+    amount: int = int(data["amount"])
+
+    # Check if it's the player's turn
+    current_player = game.get_current_player()
+    if username != current_player:
+        emit("message", {"msg": "Not your turn!"})
+        return
+
     success, msg = game.buy(username, share, amount)
 
-    # Check for flash news during trading (like original gosub 2600)
-    flash_news = game.generate_flash_news()
+    # Check for flash news during trading, men bare 20% sjanse
+    if random.random() < 0.2:  # Bare 20% sjanse for flash news per handling
+        flash_news = game.generate_flash_news()
+    else:
+        flash_news = []
 
     # Send result message to the player who made the transaction
     emit("message", {"msg": msg})
@@ -105,10 +124,17 @@ def on_buy(data):
 
 
 @socketio.on("sell")
-def on_sell(data):
-    username = data["username"]
-    share = data["share"]
+def on_sell(data: Dict[str, Union[str, int]]) -> None:
+    username = str(data["username"])
+    share = str(data["share"])
     amount = int(data["amount"])
+
+    # Check if it's the player's turn
+    current_player = game.get_current_player()
+    if username != current_player:
+        emit("message", {"msg": "Not your turn!"})
+        return
+
     success, msg = game.sell(username, share, amount)
 
     # Check for flash news during trading (like original gosub 2600)
@@ -138,22 +164,17 @@ def on_sell(data):
 
 
 @socketio.on("end_turn")
-def on_end_turn(data):
+def on_end_turn(data: Dict[str, Any]) -> None:
     global processing_end_turn
-    print(f"DEBUG: end_turn called at {time.time()}")  # Debug with timestamp
 
     # Get username from data or session
-    username = data.get("username", "unknown")
+    username: str = str(data.get("username", "unknown"))
     current_player = game.get_current_player()
 
-    print(f"DEBUG: username={username}, current_player={current_player}")
-
-    # Only allow the current player to end their turn
     if username != current_player:
         print(f"DEBUG: Ignoring end_turn from {username}, not their turn")
         return
 
-    # Prevent multiple rapid calls
     if processing_end_turn:
         print("DEBUG: end_turn already in progress, ignoring")
         return
@@ -162,9 +183,15 @@ def on_end_turn(data):
 
     try:
         winners, news_events, is_round_end = game.end_turn()
-        print(
-            f"DEBUG: is_round_end={is_round_end}, news_events count={len(news_events) if news_events else 0}"
-        )  # Debug
+
+        # After the turn ends and before next player starts
+        winner = game.check_last_player_standing()
+        if winner:
+            emit("game_over", {"winner": winner}, broadcast=True)
+            return
+
+        next_player = game.get_current_player()
+        emit("message", {"msg": f"{next_player}'s turn!"}, broadcast=True)
     finally:
         processing_end_turn = False
 
@@ -179,10 +206,7 @@ def on_end_turn(data):
 
     # Send news events only if it's the end of a round
     if is_round_end and news_events:
-        print(f"DEBUG: Sending market news with {len(news_events)} events")  # Debug
         emit("news", {"events": news_events}, broadcast=True)
-        # NOTE: Don't send as activity events - the "news" event handler in frontend
-        # already adds these to the activity log
 
     if winners:
         # Check for millionaires specifically
@@ -201,7 +225,7 @@ def on_end_turn(data):
 
 
 @socketio.on("request_update")
-def on_request_update():
+def on_request_update() -> None:
     emit(
         "update",
         {
@@ -216,7 +240,7 @@ def on_request_update():
 
 
 @socketio.on("refresh_lobby")
-def on_refresh_lobby():
+def on_refresh_lobby() -> None:
     global host_player
 
     emit(
@@ -230,9 +254,9 @@ def on_refresh_lobby():
 
 
 @socketio.on("repay_loan")
-def on_repay_loan(data):
-    username = data["username"]
-    amount = data.get("amount", None)
+def on_repay_loan(data: Dict[str, Any]) -> None:
+    username: str = str(data["username"])
+    amount: Optional[int] = int(data["amount"]) if "amount" in data else None
     success, msg = game.repay_loan(username, amount)
     emit("message", {"msg": msg})
 
@@ -263,7 +287,7 @@ def on_repay_loan(data):
 
 
 @socketio.on("get_final_scores")
-def on_get_final_scores():
+def on_get_final_scores() -> None:
     if game and game.players:
         scores = game.calculate_final_scores()
         emit("final_scores", {"scores": scores}, broadcast=True)
@@ -272,7 +296,7 @@ def on_get_final_scores():
 
 
 @socketio.on("play_again")
-def on_play_again():
+def on_play_again() -> None:
     """Handle play again request"""
     global game, host_player
 
@@ -283,13 +307,13 @@ def on_play_again():
 
 
 @socketio.on("ask_end_game")
-def on_ask_end_game():
+def on_ask_end_game() -> None:
     """Ask players if they want to end the game (like original line 770)"""
     emit("ask_end_game_prompt", broadcast=True)
 
 
 @socketio.on("end_game_response")
-def on_end_game_response(data):
+def on_end_game_response(data: Dict[str, bool]) -> None:
     """Handle response to end game question"""
     want_to_end = data.get("end_game", False)
     if want_to_end:
@@ -306,4 +330,47 @@ def on_end_game_response(data):
 
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    # Configure for standalone exe - disable debug and add production settings
+    import webbrowser
+    import threading
+    import os
+
+    # Set environment variable to suppress Werkzeug warning
+    os.environ["WERKZEUG_RUN_MAIN"] = "true"
+
+    def open_browser():
+        """Open browser after a short delay"""
+        time.sleep(1.5)  # Wait for server to start
+        webbrowser.open("http://localhost:5000")
+
+    # Start browser in background thread
+    browser_thread = threading.Thread(target=open_browser)
+    browser_thread.daemon = True
+    browser_thread.start()
+
+    print("🎮 Stockmarket Clone - C64 Style Game")
+    print("=" * 40)
+    print("🚀 Starting game server...")
+    print("🌐 Game will open in your browser at: http://localhost:5000")
+    print("📱 Others can join at: http://[your-ip]:5000")
+    print("❌ To stop the game, close this window or press Ctrl+C")
+    print("=" * 40)
+
+    try:
+        # Try multiple approaches for different Werkzeug versions
+        try:
+            # First attempt - newer version with allow_unsafe_werkzeug
+            socketio.run(
+                app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True
+            )
+        except TypeError:
+            # Fallback - older version without allow_unsafe_werkzeug
+            print("Trying alternative startup method...")
+            socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    except KeyboardInterrupt:
+        print("\n🛑 Game stopped by user")
+    except Exception as e:
+        print(f"\n❌ Error starting game: {e}")
+        print("This might be a version compatibility issue.")
+        print("Try running the original app.py instead of the .exe")
+        input("Press Enter to close...")
