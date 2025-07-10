@@ -7,6 +7,7 @@ class PlayerData(TypedDict):
     shares: Dict[str, int]
     loan: int
     bankrupt: bool
+    trades_count: int  # Track number of trades per player per round
 
 
 SHARES = ["LEAD", "ZINC", "TIN", "GOLD"]
@@ -48,7 +49,9 @@ class GameEngine:
         self.round: int = 0
         self.difficulty: int = difficulty
         self.target_value: int = target_value
-        self.ch: int = 0  # Counter for various game events
+        self.total_trade_attempts: int = (
+            0  # Counter for all trade attempts (successful or failed)
+        )
 
         # Bonus/event tracking
         self._last_bonus_share: Optional[str] = None
@@ -56,6 +59,9 @@ class GameEngine:
         self._last_flash_share: Optional[str] = None
         self._last_news_round: int = -1
         self._flash_news_count: int = 0
+
+        # Pressure history for sustained price movements
+        self.pressure_history: Dict[str, List[float]] = {s: [0.0] * 3 for s in SHARES}
 
     def add_player(self, name: str) -> None:
         if name not in self.players:
@@ -65,6 +71,7 @@ class GameEngine:
                 "shares": {k: 0 for k in SHARES},
                 "loan": 0,
                 "bankrupt": False,  # Track bankruptcy status
+                "trades_count": 0,  # Initialize trades count
             }
 
     def get_current_player(self) -> Optional[str]:
@@ -91,17 +98,19 @@ class GameEngine:
         return values
 
     def buy(self, username: str, share: str, amount: int) -> Tuple[bool, str]:
+        # Always increment total trade attempts, regardless of outcome
+        self.total_trade_attempts += 1
+
         # Check if player is bankrupt (like original line 515-520)
         pdata = self.player_data[username]
         if pdata.get("bankrupt", False):
             return False, "Cannot trade - you are bankrupt!"
 
-        # Increment ch counter for each buy attempt (like original line 3300)
-        self.ch += 1
-
         price = self.share_prices[share]
         cost = price * amount
         if pdata["balance"] >= cost:
+            # Only increment trades_count on successful trades
+            pdata["trades_count"] += 1
             pdata["balance"] -= cost
             pdata["shares"][share] += amount
             self.buy_volumes[share] += amount
@@ -110,6 +119,8 @@ class GameEngine:
             max_loan = self.calculate_max_loan(username)
             additional_needed = cost - pdata["balance"]
             if pdata["loan"] + additional_needed <= max_loan:
+                # Only increment trades_count on successful trades
+                pdata["trades_count"] += 1
                 pdata["loan"] += additional_needed
                 pdata["balance"] += additional_needed
                 pdata["balance"] -= cost
@@ -120,16 +131,17 @@ class GameEngine:
                 return False, "Insufficient funds"
 
     def sell(self, username: str, share: str, amount: int) -> Tuple[bool, str]:
+        # Always increment total trade attempts, regardless of outcome
+        self.total_trade_attempts += 1
+
         # Check if player is bankrupt (like original line 515-520)
         pdata = self.player_data[username]
         if pdata.get("bankrupt", False):
             return False, "Cannot trade - you are bankrupt!"
 
-        # Increment ch counter for each sell attempt (like original line 3300)
-        self.ch += 1
-
-        pdata = self.player_data[username]
         if pdata["shares"][share] >= amount:
+            # Only increment trades_count on successful trades
+            pdata["trades_count"] += 1
             pdata["shares"][share] -= amount
             sale_value = self.share_prices[share] * amount
             pdata["balance"] += sale_value
@@ -262,7 +274,10 @@ class GameEngine:
             self.collect_loan_interest()
             self.buy_volumes = {k: 0 for k in SHARES}
             self.sell_volumes = {k: 0 for k in SHARES}
-            self.ch = 0
+
+            # Reset trade counters for all players
+            for player_data in self.player_data.values():
+                player_data["trades_count"] = 0
 
             # Generate market news at the end of each round
             news_events = self.generate_market_news()
@@ -342,8 +357,8 @@ class GameEngine:
 
     def update_share_prices_c64(self) -> None:
         """
-        Update share prices using authentic C64 algorithm.
-        Original game used simple random changes with trade volume influence.
+        Update share prices using C64-inspired algorithm with improved volume sensitivity,
+        proper bonus share price adjustments, and persistent price momentum.
         """
         total_now: Dict[str, int] = {s: 0 for s in SHARES}
         for pdata in self.player_data.values():
@@ -351,49 +366,117 @@ class GameEngine:
                 total_now[s] += pdata["shares"][s]
 
         for i, s in enumerate(SHARES):
-            # Each share has different base movement (like original)
+            # Each share has different base movement
             base_step = [1, 5, 25, 125][i]  # LEAD, ZINC, TIN, GOLD
 
-            # Get current price and trade volume
+            # Get current price and trade volumes
             p = self.share_prices[s]
-            tp = self.last_totals[s]
-            tn = total_now[s]
-            volume_change = tn - tp
+            buys = self.buy_volumes[s]
+            sells = self.sell_volumes[s]
+            net_volume = buys - sells
+            total_volume = buys + sells
 
-            # Basic random change (-2 to +2 like C64)
-            r = random.randint(-2, 2)
+            # Calculate volume impact and market pressure
+            volume_factor = 0
+            market_pressure = 0.0
 
-            # Volume influence (simplified from original)
-            if volume_change > 0:  # More buying
-                r += 1 if random.random() < 0.7 else 0
-            elif volume_change < 0:  # More selling
-                r -= 1 if random.random() < 0.7 else 0
+            if total_volume > 0:  # Only consider pressure if there is trading
+                # Convert volumes to percentages of total shares
+                total_shares = max(
+                    1, sum(pdata["shares"][s] for pdata in self.player_data.values())
+                )
+                buy_percent = (buys / total_shares) * 100
+                sell_percent = (sells / total_shares) * 100
 
-            # 30% chance of no change
-            if random.random() < 0.3:
-                r = 0
+                # Calculate directional pressure (-1.0 to +1.0)
+                if net_volume != 0:
+                    pressure = (buy_percent - sell_percent) / max(
+                        buy_percent + sell_percent, 1
+                    )
 
-            # Calculate price change
-            pc = r * base_step
+                    # Scale volume factor based on total trading activity (1-15)
+                    activity_scale = min(
+                        15, max(1, int((buy_percent + sell_percent) / 5))
+                    )
 
-            # Apply difficulty multiplier (like original)
+                    # Stronger impact for heavy one-sided trading
+                    dominance = abs(pressure)  # How one-sided the trading is (0-1)
+
+                    # Calculate final volume factor
+                    volume_factor = int(activity_scale * (1 + dominance))
+                    if net_volume < 0:
+                        volume_factor = -volume_factor
+
+                    # Update pressure history
+                    self.pressure_history[s].pop(0)
+                    self.pressure_history[s].append(pressure)
+
+                    # Calculate market pressure from history
+                    market_pressure = sum(self.pressure_history[s]) / len(
+                        self.pressure_history[s]
+                    )
+
+            # Random factor reduced for active trading
+            if total_volume > 0:
+                r = random.randint(-1, 1)  # Smaller random factor during active trading
+            else:
+                r = random.randint(-2, 2)  # Larger random factor for quiet periods
+
+            # Base price change from volume
+            price_change = volume_factor * base_step
+
+            # Add momentum from pressure history
+            momentum = int(market_pressure * base_step * 2)
+            price_change += momentum
+
+            # Add reduced random factor
+            price_change += r * base_step
+
+            # Ensure minimum movement for significant trading
+            min_move = max(1, int(p * 0.05))  # Minimum 5% move
+            if total_volume > 0 and abs(price_change) < min_move:
+                price_change = min_move if price_change > 0 else -min_move
+
+            # Apply difficulty multiplier more predictably
             if self.difficulty >= 2:
-                if random.random() < 0.3:  # 30% chance of bigger moves
-                    pc *= self.difficulty
+                # Higher difficulty increases volatility but preserves direction
+                volatility = (
+                    1 + (self.difficulty - 1) * 0.5
+                )  # 1.5x for diff 2, 2x for diff 3
+                price_change = int(price_change * volatility)
 
-            # 10% chance of price staying exactly the same
-            if random.random() < 0.1:
-                pc = 0
+            # Handle bonus share price adjustment
+            if s == self._last_bonus_share:
+                # If shares were doubled, price should be halved to maintain value
+                target_price = max(MIN_PRICES[s], p // 2)
+                # Move price smoothly towards target
+                if p > target_price:
+                    price_change = -base_step * 2  # Move down faster during split
+                self._last_bonus_share = None  # Reset after handling
 
-            # Apply change with limits
-            new_price = int(p + pc)
-            new_price = max(MIN_PRICES[s], min(self.max_prices[s], new_price))
+            # Apply change with limits and ensure movement
+            new_price = max(
+                MIN_PRICES[s], min(self.max_prices[s], int(p + price_change))
+            )
 
-            # In original, sometimes prices would stick for a while
-            if (
-                new_price == p and random.random() < 0.2
-            ):  # 20% chance of small movement when stuck
-                new_price += base_step if random.random() < 0.5 else -base_step
+            # Prevent price from getting stuck, with bias based on pressure
+            if new_price == p:
+                bias = sum(self.pressure_history[s]) / len(self.pressure_history[s])
+                min_change = max(1, int(p * 0.02))  # Minimum 2% change
+                if bias > 0:  # Upward pressure - more likely to rise
+                    new_price += (
+                        min_change
+                        if random.random() < (0.6 + bias * 0.2)
+                        else -min_change
+                    )
+                elif bias < 0:  # Downward pressure - more likely to fall
+                    new_price += (
+                        min_change
+                        if random.random() < (0.4 + bias * 0.2)
+                        else -min_change
+                    )
+                else:  # No pressure - random movement
+                    new_price += min_change if random.random() < 0.5 else -min_change
                 new_price = max(MIN_PRICES[s], min(self.max_prices[s], new_price))
 
             self.share_prices[s] = new_price
@@ -406,182 +489,145 @@ class GameEngine:
 
         news_events: List[str] = []
 
+        # Base chance for all events decreases with trade attempts
+        event_chance = max(0.1, 1.0 - (self.total_trade_attempts * 0.02))
+
         # Prevent flash news from happening too often
         current_time = time.time()
         if hasattr(self, "_last_flash_news_time"):
             if (
                 current_time - self._last_flash_news_time < 5
-            ):  # At least 5 seconds between flash news
+            ):  # At least 5 seconds between
                 return []
         self._last_flash_news_time = current_time
 
-        # Reduce chance of flash news based on how many have happened this round
+        # Reduce chance further based on how many have happened this round
         if not hasattr(self, "_flash_news_count"):
             self._flash_news_count = 0
         if random.random() < (self._flash_news_count * 0.2):
             return []
 
+        # Base check for any event
+        if random.random() > event_chance:
+            return []  # No event due to high trade attempts
+
         news_events.append("!! NEWSFLASH !!")
 
-        # Original logic from lines 2630-2960
-        if self.ch > 12:
-            # Capital gains tax investigations (line 2870)
-            news_events.append("CAPITAL GAINS TAX INVESTIGATIONS")
-            r_tax = random.randint(0, 9)
-            if r_tax == 0:
-                news_events.append("TAX OFFICE RELENTS !...NO TAX DEMAND")
-            else:
-                news_events.append(f"DEMAND OF {r_tax * 10}% OF BANK BALANCE")
-                # Apply tax to current player only (like original)
-                current_player = self.get_current_player()
-                if current_player:
-                    pdata = self.player_data[current_player]
-                    tax = int(pdata["balance"] * (r_tax * 0.1))
-                    pdata["balance"] = max(0, pdata["balance"] - tax)
+        # Pick event type with weighted probabilities
+        event_roll = random.random()
+
+        # Market weakness (10% base chance)
+        if event_roll < 0.1:
+            news_events.append("MARKET VERY WEAK")
             return news_events
 
-        if self.ch > 10:
-            # Trading practices under suspicion (line 2950)
-            news_events.append("TRADING PRACTICES UNDER SUSPICION")
-            news_events.append("TAX OFFICIALS INVESTIGATE")
-            self.ch = 100  # Set high value like original
-            return news_events
-
-        # Original difficulty check and random events
-        r = random.randint(0, 9)
-        if r > 4 + self.difficulty:
-            # Bonus share issues or other events
-            r_bonus = random.randint(0, 9)
-            if r_bonus == 0:
-                news_events.append("MARKET VERY WEAK")
-                return news_events
-            elif r_bonus <= 4:
-                # Capital gains tax path
+        # Tax investigations (higher chance with more trades)
+        if self.total_trade_attempts > 3 and event_roll < 0.4:
+            tax_prob = min(0.8, 0.1 + (self.total_trade_attempts * 0.05))
+            if random.random() < tax_prob:
                 news_events.append("CAPITAL GAINS TAX INVESTIGATIONS")
-                r_tax = random.randint(0, 9)
-                if r_tax == 0:
+
+                # Get current player's trade count
+                current_player = self.get_current_player()
+                trades = (
+                    self.player_data[current_player]["trades_count"]
+                    if current_player
+                    else 0
+                )
+
+                # Determine tax rate based on trading activity
+                if trades <= 5:  # Few trades: low tax
+                    r_tax = random.randint(1, 3)  # 10-30%
+                elif trades <= 10:  # Moderate trades: medium tax
+                    r_tax = random.randint(3, 5)  # 30-50%
+                else:  # Many trades: high tax
+                    r_tax = random.randint(5, 9)  # 50-90%
+
+                if random.random() < 0.2:  # 20% chance of relenting
                     news_events.append("TAX OFFICE RELENTS !...NO TAX DEMAND")
                 else:
-                    news_events.append(f"DEMAND OF {r_tax * 10}% OF BANK BALANCE")
-                    # Apply tax to current player only (like original)
-                    current_player = self.get_current_player()
+                    tax_rate = r_tax * 10
+                    news_events.append(f"DEMAND OF {tax_rate}% OF BANK BALANCE")
                     if current_player:
                         pdata = self.player_data[current_player]
                         tax = int(pdata["balance"] * (r_tax * 0.1))
                         pdata["balance"] = max(0, pdata["balance"] - tax)
                 return news_events
-            else:
-                # Bonus share issue (line 2840)
-                # Velg aksje med lik sannsynlighet for alle
-                share = SHARES[random.randint(0, len(SHARES) - 1)]
-                news_events.append(f"{share} SHARES BONUS ISSUE OF 1 SHARE")
-                news_events.append("FOR EVERY TWO SHARES HELD")
 
-                # Apply to all players
-                for player in self.player_data.values():
-                    if share in player["shares"]:
-                        bonus_shares = player["shares"][share] // 2
-                        player["shares"][share] += bonus_shares
+        # Trading practice investigation (more likely with high trades)
+        if self.total_trade_attempts > 10 and event_roll < 0.6:
+            investigate_prob = min(0.9, 0.2 + (self.total_trade_attempts * 0.05))
+            if random.random() < investigate_prob:
+                news_events.append("TRADING PRACTICES UNDER SUSPICION")
+                news_events.append("TAX OFFICIALS INVESTIGATE")
                 return news_events
 
-        # Original main flash news logic (line 2660 onwards)
-        r_main = random.randint(0, 9)
-        if r_main == 0:
-            # All market dealings suspended (line 2790)
-            news_events.append("ALL MARKET DEALINGS SUSPENDED")
-            for share in SHARES:
-                self.suspended_shares.add(share)
-                self.suspended_shares_rounds[share] = 3
-            return news_events
-        elif r_main > 4:
-            # Tax refund (line 2750)
-            news_events.append("TAX .. REFUND")
-            r_refund = random.randint(0, 9)
-            if r_refund == 0:
-                news_events.append("ERROR IN TAX OFFICE ! NO REFUND")
-            else:
-                news_events.append(f"REFUND = {10 * r_refund}% OF BANK BALANCE")
-                # Apply to current player only
-                current_player = self.get_current_player()
-                if current_player:
-                    pdata = self.player_data[current_player]
-                    refund = int(pdata["balance"] * (0.1 * r_refund))
-                    pdata["balance"] += refund
-            return news_events
-        else:
-            # Bonus payment to shareholders (line 2690)
-            # Velg aksje med lik sannsynlighet for alle
-            share = SHARES[random.randint(0, len(SHARES) - 1)]
-            news_events.append(f"BONUS PAYMENT TO ALL {share} SHAREHOLDERS")
+        # Bonus shares (less likely with more trades)
+        if event_roll < 0.8:
+            bonus_prob = max(0.1, 1.0 - (self.total_trade_attempts * 0.02))
+            if random.random() < bonus_prob:
+                chosen_share = SHARES[random.randint(0, len(SHARES) - 1)]
+                news_events.append(f"{chosen_share} SHARES BONUS ISSUE OF 1 SHARE")
+                news_events.append("FOR EVERY TWO SHARES HELD")
 
-            r_payment = random.randint(0, 9)
-            if r_payment == 0:
-                news_events.append("PAYMENT SUSPENDED BECAUSE OF STRIKE")
-            else:
-                percentage = r_payment * 10
-                news_events.append(f"PAYMENT = {percentage}% OF SHARE VALUE")
-
-                # Apply to all players (line 2730)
+                # Apply bonus to all players
                 for player in self.player_data.values():
-                    if share in player["shares"] and player["shares"][share] > 0:
-                        bonus = int(
-                            0.1
-                            * r_payment
-                            * player["shares"][share]
-                            * self.share_prices[share]
-                        )
-                        player["balance"] += bonus
-            return news_events
+                    if chosen_share in player["shares"]:
+                        bonus_shares = player["shares"][chosen_share] // 2
+                        player["shares"][chosen_share] += bonus_shares
+                return news_events
+
+        # Tax refund (fallback event)
+        news_events.append("TAX .. REFUND")
+        r_refund = random.randint(0, 9)
+        if r_refund == 0:
+            news_events.append("ERROR IN TAX OFFICE ! NO REFUND")
+        else:
+            refund_rate = 10 * r_refund
+            news_events.append(f"REFUND = {refund_rate}% OF BANK BALANCE")
+            # Apply to current player only
+            current_player = self.get_current_player()
+            if current_player:
+                pdata = self.player_data[current_player]
+                refund = int(pdata["balance"] * (0.1 * r_refund))
+                pdata["balance"] += refund
+
+        self._flash_news_count += 1
+        return news_events
 
     def generate_market_news(self) -> List[str]:
         """Generate market news at the end of each round"""
         news_events: List[str] = []
 
+        # Base chance for all events decreases with trade attempts
+        event_chance = max(0.1, 1.0 - (self.total_trade_attempts * 0.02))
+
         # Market suspension events
-        r_suspend = random.randint(0, 9)
-        if (
-            r_suspend < 2 and not self.suspended_shares
-        ):  # 20% chance if no shares suspended
-            share = random.choice(SHARES)
-            if share not in self.suspended_shares:
-                self.suspended_shares.add(share)
-                self.suspended_shares_rounds[share] = random.randint(1, 3)
-                news_events.append(f"{share} MARKET DEALINGS SUSPENDED")
+        if not self.suspended_shares:  # Only check if no shares are suspended
+            if random.random() < event_chance * 0.2:  # 20% of event_chance
+                chosen_share = random.choice(SHARES)
+                if chosen_share not in self.suspended_shares:
+                    self.suspended_shares.add(chosen_share)
+                    self.suspended_shares_rounds[chosen_share] = random.randint(1, 3)
+                    news_events.append(f"{chosen_share} MARKET DEALINGS SUSPENDED")
 
-        # Bonus events (with cooldown)
-        r_bonus = random.randint(0, 9)
-        if r_bonus < 3:  # 30% chance
-            share = random.choice([s for s in SHARES if s != self._last_bonus_share])
-            self._last_bonus_share = share
-            bonus_amount = random.randint(1, 5) * 10
-            news_events.append(f"BONUS PAYMENT TO ALL {share} SHAREHOLDERS")
-            news_events.append(f"PAYMENT = {bonus_amount}% OF SHARE VALUE")
+        # Share split events (with cooldown and reduced probability)
+        if random.random() < event_chance * 0.2:  # 20% of event_chance
+            # Avoid recently split shares
+            eligible_shares = [s for s in SHARES if s != self._last_event_share]
+            if eligible_shares:  # Only proceed if we have eligible shares
+                chosen_share = random.choice(eligible_shares)
+                self._last_event_share = chosen_share
+                news_events.append(f"{chosen_share} SHARES SPLIT")
+                news_events.append("TWO FOR EVERY ONE HELD")
 
-            for player in self.player_data.values():
-                if not player.get("bankrupt", False):
-                    share_count = player["shares"][share]
-                    if share_count > 0:
-                        payment = int(
-                            share_count
-                            * self.share_prices[share]
-                            * (bonus_amount / 100)
-                        )
-                        player["balance"] += payment
-
-        # Share split events (with cooldown)
-        r_split = random.randint(0, 9)
-        if r_split < 2:  # 20% chance
-            share = random.choice([s for s in SHARES if s != self._last_event_share])
-            self._last_event_share = share
-            news_events.append(f"{share} SHARES SPLIT")
-            news_events.append("TWO FOR EVERY ONE HELD")
-
-            for player in self.player_data.values():
-                if not player.get("bankrupt", False):
-                    player["shares"][share] *= 2
-            self.share_prices[share] = max(
-                MIN_PRICES[share], self.share_prices[share] // 2
-            )
+                # Apply split to all players
+                for player in self.player_data.values():
+                    if not player.get("bankrupt", False):
+                        player["shares"][chosen_share] *= 2
+                self.share_prices[chosen_share] = max(
+                    MIN_PRICES[chosen_share], self.share_prices[chosen_share] // 2
+                )
 
         # Process suspended shares
         for share in list(self.suspended_shares):

@@ -1,3 +1,4 @@
+# pylint: disable=wrong-import-position,unused-import
 # Monkey patch must happen before any other imports
 import eventlet
 
@@ -8,6 +9,8 @@ from typing import Dict, List, Optional, Union, Any
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from engine import GameEngine, PlayerData
+
+# pylint: enable=wrong-import-position,unused-import
 
 
 app = Flask(__name__)
@@ -392,14 +395,14 @@ if __name__ == "__main__":
     print("🎮 Stockmarket Clone - C64 Style Game")
     print("=" * 40)
     print("🚀 Starting game server...")
-    print("🌐 Open in your browser: http://localhost:5001")
-    print("📱 Others can join at: http://[your-ip]:5001")
+    print("🌐 Open in your browser: http://localhost:5000")
+    print("📱 Others can join at: http://[your-ip]:5000")
     print("❌ To stop the game, close this window or press Ctrl+C")
     print("=" * 40)
 
     try:
         # Use socketio.run with eventlet
-        socketio.run(app, host="0.0.0.0", port=5001, debug=False)
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt:
         print("\n🛑 Game stopped by user")
     except Exception as e:
