@@ -1,4 +1,4 @@
-# Monkey patch must happen before other imports
+# Monkey patch must happen before any other imports
 import eventlet
 
 eventlet.monkey_patch()
@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Union, Any
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from engine import GameEngine, PlayerData
+
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "stockmarket_secret"
@@ -194,7 +195,16 @@ def on_end_turn(data: Dict[str, Any]) -> None:
         # After the turn ends and before next player starts
         winner = game.check_last_player_standing()
         if winner:
-            emit("game_over", {"winner": winner}, broadcast=True)
+            final_scores = game.calculate_final_scores()
+            emit(
+                "game_over",
+                {
+                    "winner": winner,
+                    "reason": "Last player standing - others went bankrupt",
+                    "final_scores": final_scores,
+                },
+                broadcast=True,
+            )
             return
 
         next_player = game.get_current_player()
@@ -210,6 +220,22 @@ def on_end_turn(data: Dict[str, Any]) -> None:
     )
 
     send_game_update()
+
+    # Check for any bankruptcies after price changes
+    bankrupted_players = [
+        p for p in game.players if game.player_data[p].get("bankrupt", False)
+    ]
+    if bankrupted_players:
+        for player in bankrupted_players:
+            emit(
+                "activity",
+                {
+                    "type": "bankruptcy",
+                    "message": "has gone bankrupt!",
+                    "playerName": player,
+                },
+                broadcast=True,
+            )
 
     # Send news events only if it's the end of a round
     if is_round_end and news_events:
@@ -366,14 +392,14 @@ if __name__ == "__main__":
     print("🎮 Stockmarket Clone - C64 Style Game")
     print("=" * 40)
     print("🚀 Starting game server...")
-    print("🌐 Open in your browser: http://localhost:5000")
-    print("📱 Others can join at: http://[your-ip]:5000")
+    print("🌐 Open in your browser: http://localhost:5001")
+    print("📱 Others can join at: http://[your-ip]:5001")
     print("❌ To stop the game, close this window or press Ctrl+C")
     print("=" * 40)
 
     try:
         # Use socketio.run with eventlet
-        socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+        socketio.run(app, host="0.0.0.0", port=5001, debug=False)
     except KeyboardInterrupt:
         print("\n🛑 Game stopped by user")
     except Exception as e:

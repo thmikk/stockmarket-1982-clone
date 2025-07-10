@@ -342,8 +342,8 @@ class GameEngine:
 
     def update_share_prices_c64(self) -> None:
         """
-        Update share prices using modified C64 algorithm with more realistic changes.
-        Prices will change more gradually and respond more naturally to market conditions.
+        Update share prices using authentic C64 algorithm.
+        Original game used simple random changes with trade volume influence.
         """
         total_now: Dict[str, int] = {s: 0 for s in SHARES}
         for pdata in self.player_data.values():
@@ -351,60 +351,48 @@ class GameEngine:
                 total_now[s] += pdata["shares"][s]
 
         for i, s in enumerate(SHARES):
+            # Each share has different base movement (like original)
+            base_step = [1, 5, 25, 125][i]  # LEAD, ZINC, TIN, GOLD
+
+            # Get current price and trade volume
             p = self.share_prices[s]
             tp = self.last_totals[s]
             tn = total_now[s]
-            tc = tn - tp  # Trade change (volume)
+            volume_change = tn - tp
 
-            # Base change calculation (more C64-like volatility)
-            r = random.randint(-4, 4)  # Original-style wider random range
+            # Basic random change (-2 to +2 like C64)
+            r = random.randint(-2, 2)
 
-            # Volume impact (C64 original style)
-            if tc > 0:
-                r += min(3, tc // 8)  # More impact from buying
-            elif tc < 0:
-                r -= min(3, -tc // 8)  # More impact from selling
+            # Volume influence (simplified from original)
+            if volume_change > 0:  # More buying
+                r += 1 if random.random() < 0.7 else 0
+            elif volume_change < 0:  # More selling
+                r -= 1 if random.random() < 0.7 else 0
 
-            # Basic price movement scale based on share type (original C64)
-            base_step = [1, 5, 25, 125][i]
+            # 30% chance of no change
+            if random.random() < 0.3:
+                r = 0
 
             # Calculate price change
             pc = r * base_step
 
-            # Stronger difficulty scaling (like original)
-            difficulty_impact = {1: 1.0, 2: 1.5, 3: 2.0, 4: 2.5}[self.difficulty]
-            pc *= difficulty_impact
+            # Apply difficulty multiplier (like original)
+            if self.difficulty >= 2:
+                if random.random() < 0.3:  # 30% chance of bigger moves
+                    pc *= self.difficulty
 
-            # No market trend in original C64 version
-            # Price changes were purely based on random and volume
-
-            # Price momentum dampening
-            if p > (MIN_PRICES[s] + self.max_prices[s]) / 2:
-                # Higher chance of price decrease when price is high
-                if random.random() < 0.6:
-                    pc = -abs(pc)
-            elif p < (MIN_PRICES[s] + self.max_prices[s]) / 2:
-                # Higher chance of price increase when price is low
-                if random.random() < 0.6:
-                    pc = abs(pc)
-
-            # Random market correction (occasional bigger moves)
-            if random.random() < 0.1:  # 10% chance
-                if p > (MIN_PRICES[s] + self.max_prices[s]) * 0.75:
-                    pc -= base_step * 2  # Stronger correction when price is very high
-                elif p < (MIN_PRICES[s] + self.max_prices[s]) * 0.25:
-                    pc += base_step * 2  # Stronger correction when price is very low
-
-            # Ensure minimum price movement when change is small
-            if 0 < abs(pc) < base_step:
-                pc = base_step if pc > 0 else -base_step
+            # 10% chance of price staying exactly the same
+            if random.random() < 0.1:
+                pc = 0
 
             # Apply change with limits
             new_price = int(p + pc)
             new_price = max(MIN_PRICES[s], min(self.max_prices[s], new_price))
 
-            # Add tiny random variation to prevent stagnation
-            if new_price == p and random.random() < 0.3:
+            # In original, sometimes prices would stick for a while
+            if (
+                new_price == p and random.random() < 0.2
+            ):  # 20% chance of small movement when stuck
                 new_price += base_step if random.random() < 0.5 else -base_step
                 new_price = max(MIN_PRICES[s], min(self.max_prices[s], new_price))
 
